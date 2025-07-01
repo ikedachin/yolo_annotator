@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>アノテーション - {{ image.filename }}</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="{% url 'annotator:index' %}">
+                <strong>YOLO アノテーター</strong>
+            </a>
+            <div class="navbar-nav ms-auto">
+                <span class="navbar-text">{{ image.filename }}</span>
+            </div>
+        </div>
+    </nav>
+    
+    <div class="container-fluid mt-3">
+        <div class="row">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">アノテーション</h5>
+                        <div>
+                            <button id="save-btn" class="btn btn-success btn-sm">保存</button>
+                            <button id="clear-all-btn" class="btn btn-danger btn-sm">全削除</button>
+                            {% if next_image %}
+                            <a href="{% url 'annotator:annotate' next_image.id %}" id="next-btn" class="btn btn-primary btn-sm">次の画像</a>
+                            {% else %}
+                            <a href="{% url 'annotator:index' %}" class="btn btn-secondary btn-sm">一覧に戻る</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="canvas-container" style="position: relative;">
+                            <canvas id="annotation-canvas" width="400" height="400" style="border: 1px solid #ccc; cursor: crosshair; background-color: #f0f0f0;"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h6>ラベル選択</h6>
+                    </div>
+                    <div class="card-body">
+                        <div id="label-buttons">
+                            {% for label in labels %}
+                            <button class="btn btn-outline-primary btn-sm me-2 mb-2 label-btn" 
+                                    data-label-id="{{ label.id }}" 
+                                    data-label-name="{{ label.name }}"
+                                    data-label-color="{{ label.color }}">
+                                {{ label.name }}
+                            </button>
+                            {% endfor %}
+                        </div>
+                        <div class="mt-3">
+                            <strong>選択中:</strong> <span id="selected-label">なし</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h6>アノテーション一覧</h6>
+                    </div>
+                    <div class="card-body">
+                        <div id="annotations-list">
+                            <!-- アノテーション一覧がここに表示される -->
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h6>操作方法</h6>
+                    </div>
+                    <div class="card-body">
+                        <small>
+                            <ol>
+                                <li>ラベルを選択</li>
+                                <li>画像上でドラッグして矩形を描画</li>
+                                <li>「保存」ボタンで保存</li>
+                                <li>「次の画像」で次へ</li>
+                            </ol>
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script type="text/template" id="django-data">
+        // 画像データとアノテーションデータをJSに渡す
+        const imageData = {
+            id: {{ image.id }},
+            filename: "{{ image.filename }}",
+            width: {{ image.width }},
+            height: {{ image.height }},
+            url: "{% url 'annotator:serve_image' image.filename %}"
+        };
+        
+        const labelsData = [
+            {% for label in labels %}
+            {
+                id: {{ label.id }},
+                name: "{{ label.name }}",
+                color: "{{ label.color }}"
+            }{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        ];
+        
+        const existingAnnotations = [
+            {% for annotation in annotations %}
+            {
+                id: {{ annotation.id }},
+                label_id: {{ annotation.label.id }},
+                label_name: "{{ annotation.label.name }}",
+                label_color: "{{ annotation.label.color }}",
+                x_center: {{ annotation.x_center }},
+                y_center: {{ annotation.y_center }},
+                width: {{ annotation.width }},
+                height: {{ annotation.height }}
+            }{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        ];
+    </script>
+    <script>
+        // Canvas初期化テスト
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded - testing canvas');
+            const testCanvas = document.getElementById('annotation-canvas');
+            if (testCanvas) {
+                console.log('Canvas found:', testCanvas);
+                const testCtx = testCanvas.getContext('2d');
+                
+                // テスト描画
+                testCtx.fillStyle = 'red';
+                testCtx.fillRect(10, 10, 50, 50);
+                testCtx.fillStyle = 'black';
+                testCtx.font = '16px Arial';
+                testCtx.fillText('Canvas Test', 70, 30);
+                console.log('Test drawing completed');
+            } else {
+                console.error('Canvas not found!');
+            }
+        });
+        
+        // テンプレートからデータを取得して実行
+        try {
+            eval(document.getElementById('django-data').textContent);
+            console.log('Django data loaded successfully');
+        } catch (e) {
+            console.error('Django data loading failed:', e);
+        }
+    </script>
+    <script src="{% static 'js/annotator.js' %}"></script>
+    <script>
+        // 追加のデバッグ情報
+        window.addEventListener('error', function(e) {
+            console.error('JavaScript error:', e.error, e.filename, e.lineno);
+        });
+        
+        // 画像読み込み失敗のグローバルハンドラ
+        window.addEventListener('unhandledrejection', function(e) {
+            console.error('Unhandled promise rejection:', e.reason);
+        });
+    </script>
+</body>
+</html>

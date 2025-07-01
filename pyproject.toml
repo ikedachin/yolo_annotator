@@ -1,0 +1,17 @@
+[project]
+name = "yolo-annotator"
+version = "0.1.0"
+description = "YOLO annotation tool for object detection"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "django>=5.2.3",
+    "pillow>=10.0.0",
+    "djangorestframework>=3.14.0",
+]
+
+[project.scripts]
+yolo-annotator = "main:main"
+
+[tool.uv]
+dev-dependencies = []

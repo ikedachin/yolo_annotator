@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YOLO アノテーター</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="{% url 'annotator:index' %}">
+                <strong>YOLO アノテーター</strong>
+            </a>
+        </div>
+    </nav>
+    
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-md-8">
+                <h2>画像一覧</h2>
+                <div class="mb-3">
+                    <button id="load-images-btn" class="btn btn-success">画像を読み込み</button>
+                    <button id="split-dataset-btn" class="btn btn-warning">データセット分割</button>
+                </div>
+                
+                <div class="row" id="images-grid">
+                    {% for image in images %}
+                    <div class="col-md-3 mb-3">
+                        <div class="card">
+                            <img src="{% url 'annotator:serve_image' image.filename %}" class="card-img-top" style="height: 200px; object-fit: cover;" alt="{{ image.filename }}">
+                            <div class="card-body">
+                                <h6 class="card-title">{{ image.filename }}</h6>
+                                <p class="card-text">
+                                    <small class="text-muted">{{ image.width }}x{{ image.height }}</small>
+                                    {% if image.is_annotated %}
+                                        <span class="badge bg-success">完了</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">未完了</span>
+                                    {% endif %}
+                                </p>
+                                <a href="{% url 'annotator:annotate' image.id %}" class="btn btn-primary btn-sm">アノテーション</a>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="col-12">
+                        <div class="alert alert-info">
+                            画像がありません。「画像を読み込み」ボタンをクリックして、base_imagesフォルダから画像を読み込んでください。
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h3>ラベル一覧</h3>
+                    <button class="btn btn-success btn-sm" id="add-label-btn">
+                        <i class="bi bi-plus"></i> ラベル追加
+                    </button>
+                </div>
+                <div id="labels-list">
+                    {% for label in labels %}
+                    <div class="label-item d-flex align-items-center mb-2 p-2 border rounded" data-label-id="{{ label.id }}">
+                        <span class="color-indicator rounded-circle me-2" 
+                              style="width: 16px; height: 16px; border: 1px solid rgba(0,0,0,0.1);"
+                              data-color="{{ label.color }}"></span>
+                        <span class="flex-grow-1">{{ label.name }}</span>
+                        <div class="btn-group">
+                            <button class="btn btn-outline-secondary btn-sm edit-label-btn" 
+                                    data-label-id="{{ label.id }}"
+                                    data-label-name="{{ label.name }}"
+                                    data-label-color="{{ label.color }}"
+                                    title="編集">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm delete-label-btn" 
+                                    data-label-id="{{ label.id }}"
+                                    data-label-name="{{ label.name }}"
+                                    title="削除">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <p class="text-muted" id="no-labels-message">ラベルがありません。「ラベル追加」ボタンをクリックして追加してください。</p>
+                    {% endfor %}
+                </div>
+                
+                <h4 class="mt-4">統計</h4>
+                <ul class="list-group">
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        総画像数
+                        <span class="badge bg-primary rounded-pill">{{ images.count }}</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        アノテーション済み
+                        <span class="badge bg-success rounded-pill">{{ annotated_count|default:0 }}</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- モーダル：データセット分割 -->
+    <div class="modal fade" id="splitModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">データセット分割</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="split-form">
+                        <div class="mb-3">
+                            <label for="split-ratio" class="form-label">Train/Valid分割比率</label>
+                            <select class="form-select" id="split-ratio">
+                                <option value="0.7">7:3</option>
+                                <option value="0.8" selected>8:2</option>
+                                <option value="0.9">9:1</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                    <button type="button" class="btn btn-primary" id="confirm-split">分割実行</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ラベル追加/編集モーダル -->
+    <div class="modal fade" id="labelModal" tabindex="-1" aria-labelledby="labelModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="labelModalLabel">ラベルを追加</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="labelForm">
+                        <div class="mb-3">
+                            <label for="labelName" class="form-label">ラベル名</label>
+                            <input type="text" class="form-control" id="labelName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="labelColor" class="form-label">色</label>
+                            <input type="color" class="form-control form-control-color" id="labelColor" value="#FF0000">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                    <button type="button" class="btn btn-primary" id="saveLabelBtn">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{% static 'js/main.js' %}"></script>
+    <script>
+        // ラベルの色を動的に設定
+        document.addEventListener('DOMContentLoaded', function() {
+            const colorIndicators = document.querySelectorAll('.color-indicator[data-color]');
+            colorIndicators.forEach(indicator => {
+                const color = indicator.getAttribute('data-color');
+                if (color) {
+                    indicator.style.backgroundColor = color;
+                }
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>画像テスト</title>
+</head>
+<body>
+    <h1>画像表示テスト</h1>
+    
+    <h2>1. 通常のimg要素</h2>
+    <img src="http://localhost:8000/images/IMG_0643.JPG" alt="Test Image" style="max-width: 300px;">
+    
+    <h2>2. Canvas要素</h2>
+    <canvas id="test-canvas" style="border: 1px solid #000; max-width: 300px;"></canvas>
+    
+    <script>
+        console.log('Test page loaded');
+        
+        // Canvas テスト
+        const canvas = document.getElementById('test-canvas');
+        const ctx = canvas.getContext('2d');
+        const image = new Image();
+        
+        image.onload = function() {
+            console.log('Image loaded successfully');
+            console.log('Image dimensions:', image.width, 'x', image.height);
+            
+            canvas.width = Math.min(300, image.width);
+            canvas.height = canvas.width * (image.height / image.width);
+            
+            ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+            console.log('Image drawn to canvas');
+        };
+        
+        image.onerror = function(e) {
+            console.error('Image load error:', e);
+        };
+        
+        image.src = 'http://localhost:8000/images/IMG_0643.JPG';
+        console.log('Image src set:', image.src);
+    </script>
+</body>
+</html>
