@@ -860,3 +860,52 @@ initializeLabelButtonColors();
 
 // ラベル管理機能を初期化
 initLabelManagement();
+
+// キーボードナビゲーション機能を追加
+function initKeyboardNavigation() {
+    document.addEventListener('keydown', function(event) {
+        // モーダルが開いている場合は無視
+        const openModals = document.querySelectorAll('.modal.show');
+        if (openModals.length > 0) {
+            return;
+        }
+        
+        // 入力フィールドにフォーカスがある場合は無視
+        const activeElement = document.activeElement;
+        if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+            return;
+        }
+        
+        switch(event.key) {
+            case 'ArrowLeft':
+                event.preventDefault();
+                const prevBtn = document.getElementById('prev-btn');
+                if (prevBtn) {
+                    prevBtn.click();
+                }
+                break;
+                
+            case 'ArrowRight':
+                event.preventDefault();
+                const nextBtn = document.getElementById('next-btn');
+                if (nextBtn) {
+                    nextBtn.click();
+                }
+                break;
+                
+            case 's':
+            case 'S':
+                if (event.ctrlKey) {
+                    event.preventDefault();
+                    const saveBtn = document.getElementById('save-btn');
+                    if (saveBtn) {
+                        saveBtn.click();
+                    }
+                }
+                break;
+        }
+    });
+}
+
+// キーボードナビゲーションを初期化
+initKeyboardNavigation();
