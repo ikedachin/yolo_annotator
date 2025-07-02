@@ -233,7 +233,7 @@ uv run python manage.py runserver --settings=yolo_annotator.settings
 - **視覚的フィードバック**: 色付きラベルで視覚的に区別
 - **モーダルUI**: 直感的な操作インターフェース
 
-## � トラブルシューティング
+## 🙅‍♂️ トラブルシューティング
 
 ### よくある問題と解決方法
 
@@ -267,7 +267,7 @@ cd yolo_annotator
 uv run python manage.py migrate
 ```
 
-## �📝 ライセンス
+## 📝 ライセンス
 
 このプロジェクトはMITライセンスの下で公開されています。
 
