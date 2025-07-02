@@ -2,15 +2,16 @@
 
 ## 概要
 
-`annotator.js`は、YOLO形式のアノテーション作業を行うためのWebアプリケーションのフロントエンド中核ファイルです。HTML5 CanvasAPIを使用してバウンディングボックスの描画、ラベル管理、アノテーションデータの保存などを行います。
+`annotator.js`は、YOLO形式のアノテーション作業を行うためのWebアプリケーションのフロントエンド中核ファイルです。HTML5 Canvas APIを使用してバウンディングボックスの描画、ラベル管理、アノテーションデータの保存、効率的ナビゲーション機能などを提供します。
 
 ## アーキテクチャ概要
 
 ```mermaid
 graph TB
-    subgraph "Main Components"
+    subgraph "Core Components"
         AC[AnnotationCanvas Class]
         LM[Label Management]
+        Nav[Navigation System]
         UI[UI Controllers]
         API[API Communication]
     end
@@ -19,34 +20,48 @@ graph TB
         Draw[Drawing Operations]
         Event[Event Handlers]
         Coord[Coordinate Conversion]
+        KB[Keyboard Shortcuts]
     end
     
     subgraph "Data Management"
         Ann[Annotation Data]
         Label[Label Data]
         Image[Image Data]
+        Auto[Auto-Save System]
     end
     
     AC --> Draw
     AC --> Event
     AC --> Coord
-    AC --> Ann
+    Nav --> KB
+    Nav --> Auto
     LM --> Label
     UI --> API
     API --> Ann
     API --> Label
     
     style AC fill:#e1f5fe
-    style LM fill:#f3e5f5
-    style UI fill:#e8f5e8
+    style Nav fill:#f3e5f5
+    style LM fill:#e8f5e8
     style API fill:#fff3e0
 ```
 
-## クラス構造
+## 主要機能
 
-### AnnotationCanvas クラス
-
+### 1. AnnotationCanvas クラス
 YOLO アノテーション機能の中核を担うクラスです。Canvas APIを使用してバウンディングボックスの描画とYOLO形式での座標管理を行います。
+
+### 2. 効率的ナビゲーション機能
+- **双方向移動**: 前/次ボタンによる画像間移動
+- **キーボードショートカット**: ←/→キー、Ctrl+S
+- **自動保存**: 画像移動時の自動保存機能
+- **スマートUI**: 適切なボタン表示制御
+
+### 3. 動的ラベル管理
+- **リアルタイム追加**: その場でのラベル作成
+- **視覚的識別**: 色分けによる区別
+- **安全な削除**: 使用中ラベルの削除防止
+- **統合管理**: アノテーション画面での一元管理
 
 #### プロパティ
 

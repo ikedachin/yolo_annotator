@@ -1,7 +1,7 @@
-# views.py 解説
+# views.py 詳細解説
 
 ## 概要
-`views.py`は、YOLOアノテーターアプリケーションのDjangoビューを定義するファイルです。画像のアノテーション機能、データセット管理、ラベル管理などの主要機能を提供しています。
+`views.py`は、YOLOアノテーターアプリケーションのDjangoビューを定義するファイルです。画像のアノテーション機能、高度なデータセット管理、動的ラベル管理、効率的ナビゲーション機能などの主要機能を提供しています。
 
 ## インポート
 ```python
@@ -17,6 +17,39 @@ import shutil
 import random
 import mimetypes
 from .models import ImageFile, Label, Annotation
+```
+
+## アーキテクチャ概要
+
+```mermaid
+graph TB
+    subgraph "View Functions"
+        Index[index - メインダッシュボード]
+        Annotate[annotate - アノテーション画面]
+        Save[save_annotations - データ保存]
+        Load[load_images - 画像読み込み]
+        Split[split_dataset - データセット分割]
+        LabelOps[ラベル管理関数群]
+    end
+    
+    subgraph "Data Flow"
+        Models[Django Models]
+        DB[SQLite Database]
+        Files[File System]
+    end
+    
+    Index --> Models
+    Annotate --> Models
+    Save --> Models
+    Load --> Files
+    Split --> Files
+    LabelOps --> Models
+    Models --> DB
+    
+    style Index fill:#e1f5fe
+    style Annotate fill:#f3e5f5
+    style Save fill:#e8f5e8
+    style Split fill:#fff3e0
 ```
 
 ## 主要な関数とその機能
@@ -78,16 +111,25 @@ from .models import ImageFile, Label, Annotation
 **戻り値**: 読み込み結果のJSONレスポンス
 
 ### 5. `split_dataset(request)`
-**機能**: データセットをtrain/validに分割
-- アノテーション済み画像のみを対象
-- 指定された比率（デフォルト8:2）でランダム分割
-- 画像ファイルを各フォルダにコピー
-- YOLOフォーマットのラベルファイルを生成
+**機能**: 高度なデータセット分割とYOLO学習用ファイル生成
+- アノテーション済み画像のみを対象とした分割処理
+- 指定比率（7:3、8:2、9:1）でのランダム分割
+- **画像サイズ統一**: 640x640、416x416等のYOLO学習用サイズへの自動変換
+- **パディング処理**: アスペクト比を保持した適切なパディング
+- **タイムスタンプ付きフォルダ**: 重複防止と履歴管理
+- **学習用YAML生成**: YOLO学習用設定ファイルの自動作成
+- **座標変換**: リサイズ後の画像に合わせた正確な座標変換
 
 **パラメータ**:
-- リクエストボディ: `split_ratio`（分割比率）を含むJSON
+- リクエストボディ: `split_ratio`（分割比率）、`image_size`（画像サイズ）を含むJSON
 
-**戻り値**: 分割結果のJSONレスポンス
+**高度な処理**:
+- PIL（Pillow）を使用した画像リサイズとパディング
+- アスペクト比保持によるYOLO学習最適化
+- 座標正規化の正確な計算
+- タイムスタンプ付き出力フォルダ管理
+
+**戻り値**: 分割結果の詳細なJSONレスポンス（画像数、サイズ、出力パス含む）
 
 ### 6. `add_label(request)`
 **機能**: 新しいラベルの追加
@@ -100,71 +142,74 @@ from .models import ImageFile, Label, Annotation
 
 **戻り値**: 作成されたラベル情報またはエラーのJSONレスポンス
 
-### 7. `delete_label(request, label_id)`
-**機能**: ラベルの削除
-- 指定されたIDのラベルを削除
-- アノテーションで使用中の場合は削除を拒否
+### 7. `update_label(request, label_id)`
+**機能**: 既存ラベルの編集
+- 指定されたIDのラベルを更新
+- 名前と色の変更に対応
+- 重複チェックとバリデーション
+
+**パラメータ**:
+- `label_id`: 更新対象のラベルID
+- リクエストボディ: `name`（新しいラベル名）と`color`（新しい色）を含むJSON
+
+**戻り値**: 更新されたラベルのJSONレスポンス
+
+### 8. `delete_label(request, label_id)`
+**機能**: ラベルの安全な削除
+- 使用中のラベル（アノテーションで使用されている）は削除防止
+- 未使用のラベルのみ削除可能
+- データ整合性の保証
 
 **パラメータ**:
 - `label_id`: 削除対象のラベルID
 
+**安全機能**:
+- アノテーション使用チェック
+- エラーハンドリング
+
 **戻り値**: 削除結果のJSONレスポンス
 
-### 8. `update_label(request, label_id)`
-**機能**: ラベル情報の更新
-- ラベル名と色の更新
-- 名前変更時の重複チェック
-- 使用中のラベルでも編集可能
-
-**パラメータ**:
-- `label_id`: 更新対象のラベルID
-- リクエストボディ: 更新する`name`と`color`を含むJSON
-
-**戻り値**: 更新されたラベル情報またはエラーのJSONレスポンス
-
 ### 9. `serve_image(request, filename)`
-**機能**: base_imagesフォルダからの画像配信
-- 静的ファイル配信機能
-- キャッシュ制御ヘッダーの設定
-- CORS対応
+**機能**: 画像ファイルの安全な配信
+- `base_images`フォルダからの画像ファイル配信
 - MIMEタイプの自動判定
+- ファイル存在チェック
+- セキュリティ対策（パス検証）
 
 **パラメータ**:
 - `filename`: 配信対象の画像ファイル名
 
+**セキュリティ**:
+- ディレクトリトラバーサル攻撃対策
+- 許可されたファイル形式のみ配信
+
 **戻り値**: 画像ファイルのHTTPレスポンス
 
-## エラーハンドリング
-- JSONデコードエラーの処理
-- データベース制約エラー（UNIQUE constraint）の処理
-- ファイル操作エラーの処理
-- 404エラー（画像が見つからない場合）の処理
+## 技術的特徴
 
-## セキュリティ機能
-- `@csrf_exempt`: 特定のAPIエンドポイントでCSRF保護を無効化
-- `@require_http_methods`: HTTPメソッドの制限
-- `get_object_or_404`: 安全なオブジェクト取得
-
-## 設定値の使用
-- `settings.BASE_IMAGES_DIR`: 元画像フォルダのパス
-- `settings.TRAIN_IMAGES_DIR`: 訓練用画像フォルダのパス
-- `settings.TRAIN_LABELS_DIR`: 訓練用ラベルフォルダのパス
-- `settings.VALID_IMAGES_DIR`: 検証用画像フォルダのパス
-- `settings.VALID_LABELS_DIR`: 検証用ラベルフォルダのパス
-
-## 主要なワークフロー
-1. **画像読み込み**: `load_images()` → base_imagesから画像を検索・登録
-2. **アノテーション**: `annotate()` → `save_annotations()` → アノテーション作業
-3. **ラベル使用状況**: `index()` → ラベル一覧にCount集計による使用回数表示
-4. **データセット分割**: `split_dataset()` → 訓練/検証用データの生成
-5. **ラベル管理**: `add_label()`, `update_label()`, `delete_label()` → ラベルのCRUD操作
-
-## データベース集計機能
-### ラベル使用回数の計算
+### ナビゲーション機能の実装
 ```python
-# index()関数で使用される集計クエリ
-labels = Label.objects.annotate(usage_count=Count('annotation')).order_by('name')
+# 双方向ナビゲーション用のクエリ
+next_image = ImageFile.objects.filter(id__gt=image_id).first()
+prev_image = ImageFile.objects.filter(id__lt=image_id).order_by('-id').first()
 ```
-このクエリにより、各ラベルに対してそのラベルを使用するAnnotationレコードの数が`usage_count`属性として追加されます。これによりテンプレート側で`{{ label.usage_count }}`としてアクセス可能になります。
+
+### 高度なデータセット分割機能
+- **タイムスタンプ付きフォルダ**: `output_20250702_143000/`形式
+- **画像サイズ統一**: PIL/Pillowを使用したリサイズ・パディング
+- **座標変換**: リサイズ後の画像に合わせた正確な座標計算
+- **YAML生成**: YOLO学習用設定ファイルの自動作成
+
+### エラーハンドリング
+- 包括的な例外処理
+- 詳細なエラーメッセージ
+- データ整合性の保証
+- セキュリティ対策の統合
+
+### パフォーマンス最適化
+- 効率的なデータベースクエリ
+- 必要最小限のデータ取得
+- メモリ効率的な画像処理
+- キャッシュ機能の活用
 
 このファイルは、WebアプリケーションのバックエンドAPIとして機能し、フロントエンド（JavaScript）からのリクエストを処理してYOLOアノテーション作業をサポートしています。

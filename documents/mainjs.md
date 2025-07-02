@@ -2,19 +2,20 @@
 
 ## 概要
 
-`main.js`は、YOLO画像アノテーターのメインページ（画像一覧・ダッシュボード）を制御するJavaScriptファイルです。画像の読み込み、データセットの分割、ラベル管理、表示モードの切り替えなどの機能を提供します。
+`main.js`は、YOLO画像アノテーターのメインページ（ダッシュボード・画像一覧）を制御するJavaScriptファイルです。画像の読み込み、高度なデータセット分割、動的ラベル管理、表示モードの切り替えなどの機能を提供します。
 
-**注意**: アノテーション画面の前後移動やキーボードナビゲーション機能は`annotator.js`で実装されており、本ファイルではなくアノテーション専用のJavaScriptで管理されています。
+**注意**: アノテーション画面の前後移動やキーボードナビゲーション機能は`annotator.js`で実装されており、本ファイルではメインダッシュボードの機能を管理しています。
 
 ## アーキテクチャ概要
 
 ```mermaid
 graph TB
-    subgraph "Main Components"
-        IL[Image Loading]
-        DS[Dataset Splitting]
-        LM[Label Management]
-        VT[View Toggle]
+    subgraph "Main Dashboard Components"
+        IL[Image Loading System]
+        DS[Advanced Dataset Splitting]
+        LM[Dynamic Label Management]
+        VT[View Toggle System]
+        Stats[Statistics Display]
         UI[UI Controllers]
         API[API Communication]
     end
@@ -23,12 +24,14 @@ graph TB
         Grid[Grid View]
         List[List View]
         Modal[Modal Management]
+        Progress[Progress Tracking]
     end
     
     subgraph "Data Operations"
-        Load[Image Loading]
-        Split[Dataset Splitting]
+        Load[Image Loading & Detection]
+        Split[Dataset Splitting & YAML]
         Labels[Label CRUD Operations]
+        Stats_calc[Statistics Calculation]
     end
     
     IL --> Load
@@ -36,6 +39,7 @@ graph TB
     LM --> Labels
     VT --> Grid
     VT --> List
+    Stats --> Stats_calc
     UI --> Modal
     UI --> API
     API --> Load
@@ -47,6 +51,26 @@ graph TB
     style LM fill:#e8f5e8
     style VT fill:#fff3e0
 ```
+
+## 主要機能
+
+### 1. 高度な画像管理システム
+- **自動検出**: `base_images`フォルダからの画像自動検出
+- **メタデータ抽出**: 画像サイズと形式の自動取得
+- **進捗管理**: アノテーション完了状況の可視化
+- **表示切り替え**: グリッド/リスト表示の動的切り替え
+
+### 2. 高性能データセット分割機能
+- **比率選択**: 7:3、8:2、9:1の複数比率対応
+- **画像サイズ統一**: YOLO学習用サイズへの自動変換
+- **YAML自動生成**: 学習用設定ファイルの作成
+- **タイムスタンプ管理**: 出力フォルダの重複防止
+
+### 3. 動的ラベル管理システム
+- **リアルタイム操作**: その場でのラベル追加・編集・削除
+- **使用回数表示**: 各ラベルの使用頻度追跡
+- **安全な削除**: 使用中ラベルの削除防止
+- **色分け管理**: 視覚的識別のための色設定
 
 ## 主要機能
 
