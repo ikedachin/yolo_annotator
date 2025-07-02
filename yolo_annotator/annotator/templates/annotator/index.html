@@ -173,6 +173,16 @@
                                 <option value="0.9">9:1</option>
                             </select>
                         </div>
+                        <div class="mb-3">
+                            <label for="image-size" class="form-label">出力画像サイズ</label>
+                            <select class="form-select" id="image-size">
+                                <option value="640">640×640</option>
+                                <option value="1280" selected>1280×1280</option>
+                            </select>
+                            <div class="form-text">
+                                画像は正方形になるようにパディングされます。縦長の場合は右側に、横長の場合は下側にパディングが追加されます。
+                            </div>
+                        </div>
                     </form>
                 </div>
                 <div class="modal-footer">
