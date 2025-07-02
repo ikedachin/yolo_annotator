@@ -86,6 +86,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
+    // 表示切り替え機能
+    initViewToggle();
+    
     // ラベル管理機能を初期化
     initLabelManagement();
 });
@@ -309,6 +312,60 @@ function removeLabelFromUI(labelId) {
             noLabelsMessage.textContent = 'ラベルがありません。「ラベル追加」ボタンをクリックして追加してください。';
             labelsList.appendChild(noLabelsMessage);
         }
+    }
+}
+
+// 表示切り替え機能の初期化
+function initViewToggle() {
+    const gridViewBtn = document.getElementById('grid-view-btn');
+    const listViewBtn = document.getElementById('list-view-btn');
+    const imagesGrid = document.getElementById('images-grid');
+    const imagesList = document.getElementById('images-list');
+    
+    // 初期状態：グリッド表示をアクティブに
+    let currentView = localStorage.getItem('imageViewMode') || 'grid';
+    
+    // 初期表示設定
+    if (currentView === 'list') {
+        showListView();
+    } else {
+        showGridView();
+    }
+    
+    // グリッド表示ボタンのクリックイベント
+    gridViewBtn.addEventListener('click', function() {
+        showGridView();
+        localStorage.setItem('imageViewMode', 'grid');
+    });
+    
+    // リスト表示ボタンのクリックイベント
+    listViewBtn.addEventListener('click', function() {
+        showListView();
+        localStorage.setItem('imageViewMode', 'list');
+    });
+    
+    function showGridView() {
+        // ボタンの状態を更新
+        gridViewBtn.classList.add('active');
+        listViewBtn.classList.remove('active');
+        
+        // 表示を切り替え
+        imagesGrid.classList.remove('d-none');
+        imagesList.classList.add('d-none');
+        
+        currentView = 'grid';
+    }
+    
+    function showListView() {
+        // ボタンの状態を更新
+        listViewBtn.classList.add('active');
+        gridViewBtn.classList.remove('active');
+        
+        // 表示を切り替え
+        imagesGrid.classList.add('d-none');
+        imagesList.classList.remove('d-none');
+        
+        currentView = 'list';
     }
 }
 

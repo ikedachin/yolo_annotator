@@ -26,6 +26,7 @@ class AnnotationCanvas {
         this.scale = 1;
         this.offsetX = 0;
         this.offsetY = 0;
+        this.hoveredAnnotationId = null; // ホバー中のアノテーションID
         
         this.initEventListeners();
     }
@@ -260,13 +261,24 @@ class AnnotationCanvas {
         
         // 既存のアノテーションを描画
         this.annotations.forEach(ann => {
-            this.drawAnnotation(ann);
+            // ホバー中のアノテーション以外を通常通り描画
+            if (ann.id !== this.hoveredAnnotationId) {
+                this.drawAnnotation(ann);
+            }
         });
+        
+        // ホバー中のアノテーションを薄い色で描画
+        if (this.hoveredAnnotationId !== null) {
+            const hoveredAnnotation = this.annotations.find(ann => ann.id === this.hoveredAnnotationId);
+            if (hoveredAnnotation) {
+                this.drawAnnotation(hoveredAnnotation, true); // ホバー状態で描画
+            }
+        }
         
         console.log('redraw completed');
     }
     
-    drawAnnotation(annotation) {
+    drawAnnotation(annotation, isHovered = false) {
         if (!this.image || !this.image.naturalWidth) {
             return; // 画像が読み込まれていない場合は描画しない
         }
@@ -277,7 +289,16 @@ class AnnotationCanvas {
         const w = annotation.width * this.image.naturalWidth * this.scale;
         const h = annotation.height * this.image.naturalHeight * this.scale;
         
-        // 矩形を描画
+        // ホバー中の場合は内部を薄く塗りつぶし
+        if (isHovered) {
+            // バウンディングボックスの内部を薄い色で塗りつぶし
+            this.ctx.globalAlpha = 0.2;
+            this.ctx.fillStyle = annotation.label_color;
+            this.ctx.fillRect(x, y, w, h);
+            this.ctx.globalAlpha = 1.0;
+        }
+        
+        // 矩形の枠を描画
         this.ctx.strokeStyle = annotation.label_color;
         this.ctx.lineWidth = 2;
         this.ctx.strokeRect(x, y, w, h);
@@ -320,7 +341,7 @@ class AnnotationCanvas {
             item.className = 'annotation-item';
             item.dataset.annotationId = ann.id;
             item.innerHTML = `
-                <div class="annotation-label" style="color: ${ann.label_color};">
+                <div class="annotation-label" style="border-color: ${ann.label_color};">
                     ${ann.label_name}
                 </div>
                 <div class="annotation-coords">
@@ -331,6 +352,15 @@ class AnnotationCanvas {
             
             item.addEventListener('click', () => {
                 this.highlightAnnotation(ann.id);
+            });
+            
+            // ホバー時にバウンディングボックスをハイライト
+            item.addEventListener('mouseenter', () => {
+                this.hoverAnnotation(ann.id);
+            });
+            
+            item.addEventListener('mouseleave', () => {
+                this.clearHoverAnnotation();
             });
             
             listContainer.appendChild(item);
@@ -369,6 +399,16 @@ class AnnotationCanvas {
             width: ann.width,
             height: ann.height
         }));
+    }
+    
+    hoverAnnotation(annotationId) {
+        this.hoveredAnnotationId = annotationId;
+        this.redraw();
+    }
+    
+    clearHoverAnnotation() {
+        this.hoveredAnnotationId = null;
+        this.redraw();
     }
 }
 
@@ -421,22 +461,35 @@ document.addEventListener('DOMContentLoaded', function() {
     // 既存のアノテーションを読み込み
     annotationCanvas.loadExistingAnnotations(window.existingAnnotations);
     
-    // ラベルボタンのイベントリスナー（イベント委譲を使用）
+    // 既存のラベルボタンに色を適用
+    initializeLabelButtonColors();
+    
+    // ラベル管理機能を初期化
+    initLabelManagement();
+    
+    // 初期化時にbackdropをクリーンアップ（既存の残骸を削除）
+    cleanupModalBackdrops();
+    
+    // ラベルボタンのイベントリスナー（シンプルな選択のみ）
     document.getElementById('label-buttons').addEventListener('click', function(e) {
         if (e.target.closest('.label-btn')) {
             const btn = e.target.closest('.label-btn');
-            // アクティブ状態を更新
-            document.querySelectorAll('.label-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            
-            // 選択されたラベルを設定
-            annotationCanvas.setSelectedLabel(
-                parseInt(btn.dataset.labelId),
-                btn.dataset.labelName,
-                btn.dataset.labelColor
-            );
+            selectLabel(btn);
         }
     });
+    
+    function selectLabel(btn) {
+        // アクティブ状態を更新
+        document.querySelectorAll('.label-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        
+        // 選択されたラベルを設定
+        annotationCanvas.setSelectedLabel(
+            parseInt(btn.dataset.labelId),
+            btn.dataset.labelName,
+            btn.dataset.labelColor
+        );
+    }
     
     // 保存ボタン
     document.getElementById('save-btn').addEventListener('click', function() {
@@ -492,43 +545,124 @@ document.addEventListener('DOMContentLoaded', function() {
     initLabelManagement();
 });
 
+// 既存のラベルボタンに色を適用する関数
+function initializeLabelButtonColors() {
+    const labelButtons = document.querySelectorAll('.label-btn');
+    labelButtons.forEach(button => {
+        const labelColor = button.dataset.labelColor;
+        if (labelColor) {
+            button.style.borderColor = labelColor;
+        }
+    });
+}
+
 // ラベル管理機能の初期化
 function initLabelManagement() {
     let editingLabelId = null;
+    const labelModal = new bootstrap.Modal(document.getElementById('labelModal'));
+    const editLabelSelectModal = new bootstrap.Modal(document.getElementById('editLabelSelectModal'));
+    
+    // モーダルイベントハンドラーを追加してbackdropの問題を防ぐ
+    const labelModalElement = document.getElementById('labelModal');
+    const editLabelSelectModalElement = document.getElementById('editLabelSelectModal');
+    
+    // モーダルが完全に隠れた後にbackdropをクリーンアップ
+    labelModalElement.addEventListener('hidden.bs.modal', function () {
+        document.body.classList.remove('modal-open');
+        const backdrops = document.querySelectorAll('.modal-backdrop');
+        backdrops.forEach(backdrop => backdrop.remove());
+    });
+    
+    editLabelSelectModalElement.addEventListener('hidden.bs.modal', function () {
+        document.body.classList.remove('modal-open');
+        const backdrops = document.querySelectorAll('.modal-backdrop');
+        backdrops.forEach(backdrop => backdrop.remove());
+    });
     
     // ラベル追加ボタン
     document.getElementById('add-label-btn').addEventListener('click', function() {
+        // 既存のbackdropをクリーンアップ
+        cleanupModalBackdrops();
+        
         editingLabelId = null;
         document.getElementById('labelModalLabel').textContent = 'ラベルを追加';
         document.getElementById('labelName').value = '';
         document.getElementById('labelColor').value = '#FF0000';
-        new bootstrap.Modal(document.getElementById('labelModal')).show();
+        labelModal.show();
     });
     
     // ラベル編集ボタン
-    document.addEventListener('click', function(e) {
-        if (e.target.closest('.edit-label-btn')) {
-            const btn = e.target.closest('.edit-label-btn');
-            editingLabelId = btn.dataset.labelId;
-            document.getElementById('labelModalLabel').textContent = 'ラベルを編集';
-            document.getElementById('labelName').value = btn.dataset.labelName;
-            document.getElementById('labelColor').value = btn.dataset.labelColor;
-            new bootstrap.Modal(document.getElementById('labelModal')).show();
-        }
+    document.getElementById('edit-label-btn').addEventListener('click', function() {
+        // 既存のbackdropをクリーンアップ
+        cleanupModalBackdrops();
+        showEditLabelSelectModal();
     });
     
-    // ラベル削除ボタン
-    document.addEventListener('click', function(e) {
-        if (e.target.closest('.delete-label-btn')) {
-            const btn = e.target.closest('.delete-label-btn');
-            const labelName = btn.dataset.labelName;
-            const labelId = btn.dataset.labelId;
-            
-            if (confirm(`ラベル「${labelName}」を削除しますか？\n※このラベルが使用されているアノテーションがある場合は削除できません。`)) {
-                deleteLabel(labelId);
-            }
+    // ラベル編集選択モーダルを表示
+    function showEditLabelSelectModal() {
+        const editLabelList = document.getElementById('edit-label-list');
+        editLabelList.innerHTML = '';
+        
+        // 現在のラベル一覧を取得
+        const labelButtons = document.querySelectorAll('.label-btn');
+        
+        if (labelButtons.length === 0) {
+            editLabelList.innerHTML = '<div class="alert alert-info">編集可能なラベルがありません。</div>';
+        } else {
+            labelButtons.forEach(btn => {
+                const labelId = btn.dataset.labelId;
+                const labelName = btn.dataset.labelName;
+                const labelColor = btn.dataset.labelColor;
+                
+                // ラベルが使用されているかチェック
+                const isUsed = annotationCanvas.annotations.some(annotation => 
+                    annotation.label_id === parseInt(labelId)
+                );
+                
+                const listItem = document.createElement('button');
+                listItem.className = `list-group-item list-group-item-action d-flex justify-content-between align-items-center ${isUsed ? 'disabled' : ''}`;
+                listItem.innerHTML = `
+                    <div class="d-flex align-items-center">
+                        <span class="color-indicator rounded-circle me-2" 
+                              style="width: 16px; height: 16px; background-color: ${labelColor}; border: 1px solid rgba(0,0,0,0.1);"></span>
+                        <span>${labelName}</span>
+                    </div>
+                    ${isUsed ? '<small class="text-muted">使用中</small>' : ''}
+                `;
+                
+                if (!isUsed) {
+                    listItem.addEventListener('click', function() {
+                        // モーダルを隠す前にbackdropをクリーンアップ
+                        cleanupModalBackdrops();
+                        editLabelSelectModal.hide();
+                        
+                        // 少し遅延させてからラベル編集モーダルを表示
+                        setTimeout(() => {
+                            editLabelById(labelId, labelName, labelColor);
+                        }, 150);
+                    });
+                }
+                
+                editLabelList.appendChild(listItem);
+            });
         }
-    });
+        
+        editLabelSelectModal.show();
+    }
+    
+    // ラベル編集
+    function editLabelById(labelId, labelName, labelColor) {
+        // 既存のbackdropをクリーンアップ
+        cleanupModalBackdrops();
+        
+        editingLabelId = labelId;
+        document.getElementById('labelModalLabel').textContent = 'ラベルを編集';
+        document.getElementById('labelName').value = labelName;
+        document.getElementById('labelColor').value = labelColor;
+        labelModal.show();
+    }
+    
+    // この部分は削除（上のイベントハンドラーで処理）
     
     // ラベル保存ボタン
     document.getElementById('saveLabelBtn').addEventListener('click', function() {
@@ -536,173 +670,116 @@ function initLabelManagement() {
         const color = document.getElementById('labelColor').value;
         
         if (!name) {
-            alert('ラベル名を入力してください');
+            alert('ラベル名を入力してください。');
             return;
         }
         
-        if (editingLabelId) {
-            updateLabel(editingLabelId, name, color);
-        } else {
-            addLabel(name, color);
-        }
-    });
-}
-
-// ラベル追加
-function addLabel(name, color) {
-    fetch('/api/add_label/', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': getCookie('csrftoken')
-        },
-        body: JSON.stringify({ name, color })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.status === 'success') {
-            // ラベル一覧を更新
-            addLabelToUI(data.label);
-            // モーダルを閉じる
-            bootstrap.Modal.getInstance(document.getElementById('labelModal')).hide();
-            // グローバルラベルデータも更新
-            window.labelsData.push(data.label);
-        } else {
-            alert('エラー: ' + data.message);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('エラーが発生しました');
-    });
-}
-
-// ラベル更新
-function updateLabel(labelId, name, color) {
-    fetch(`/api/update_label/${labelId}/`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': getCookie('csrftoken')
-        },
-        body: JSON.stringify({ name, color })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.status === 'success') {
-            // ラベル一覧を更新
-            updateLabelInUI(data.label);
-            // モーダルを閉じる
-            bootstrap.Modal.getInstance(document.getElementById('labelModal')).hide();
-            // グローバルラベルデータも更新
-            const labelIndex = window.labelsData.findIndex(l => l.id == labelId);
-            if (labelIndex !== -1) {
-                window.labelsData[labelIndex] = data.label;
+        this.disabled = true;
+        this.textContent = '保存中...';
+        
+        const url = editingLabelId ? `/api/labels/${editingLabelId}/` : '/api/labels/';
+        const method = editingLabelId ? 'PUT' : 'POST';
+        
+        fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                name: name,
+                color: color
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                if (editingLabelId) {
+                    updateLabelInUI(data.label);
+                    // アノテーションキャンバスのラベルデータも更新
+                    updateLabelInCanvas(data.label);
+                    alert('ラベルが更新されました');
+                } else {
+                    addLabelToUI(data.label);
+                    // グローバルラベルデータに追加
+                    window.labelsData.push(data.label);
+                    alert('ラベルが作成されました');
+                }
+                labelModal.hide();
+                // モーダルが隠れた後にbackdropをクリーンアップ
+                setTimeout(() => {
+                    cleanupModalBackdrops();
+                }, 150);
+            } else {
+                alert('エラー: ' + data.message);
             }
-        } else {
-            alert('エラー: ' + data.message);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('エラーが発生しました');
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('通信エラーが発生しました。もう一度お試しください。');
+            // エラー時もbackdropをクリーンアップ
+            cleanupModalBackdrops();
+        })
+        .finally(() => {
+            this.disabled = false;
+            this.textContent = '保存';
+        });
     });
 }
 
-// ラベル削除
-function deleteLabel(labelId) {
-    fetch(`/api/delete_label/${labelId}/`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': getCookie('csrftoken')
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.status === 'success') {
-            // ラベル一覧から削除
-            removeLabelFromUI(labelId);
-            // グローバルラベルデータからも削除
-            const labelIndex = window.labelsData.findIndex(l => l.id == labelId);
-            if (labelIndex !== -1) {
-                window.labelsData.splice(labelIndex, 1);
+// UIのラベルを更新
+function updateLabelInUI(label) {
+    const labelButton = document.querySelector(`[data-label-id="${label.id}"]`);
+    if (labelButton) {
+        labelButton.setAttribute('data-label-name', label.name);
+        labelButton.setAttribute('data-label-color', label.color);
+        labelButton.textContent = label.name;
+        labelButton.style.backgroundColor = '';
+        labelButton.style.borderColor = label.color;
+        
+        // 選択中のラベルの場合、表示も更新
+        if (labelButton.classList.contains('active')) {
+            document.getElementById('selected-label').textContent = label.name;
+            if (annotationCanvas) {
+                annotationCanvas.selectedLabelName = label.name;
+                annotationCanvas.selectedLabelColor = label.color;
             }
-            alert(data.message);
-        } else {
-            alert('エラー: ' + data.message);
         }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('エラーが発生しました');
-    });
+    }
 }
 
 // UIにラベルを追加
 function addLabelToUI(label) {
     const labelButtons = document.getElementById('label-buttons');
-    const labelItem = document.createElement('div');
-    labelItem.className = 'label-item d-flex align-items-center mb-2';
-    labelItem.dataset.labelId = label.id;
-    labelItem.innerHTML = `
-        <button class="btn btn-outline-primary btn-sm me-2 label-btn flex-grow-1" 
-                data-label-id="${label.id}" 
-                data-label-name="${label.name}"
-                data-label-color="${label.color}">
-            <span class="color-indicator rounded-circle d-inline-block me-1" 
-                  style="width: 12px; height: 12px; background-color: ${label.color};"></span>
-            ${label.name}
-        </button>
-        <div class="btn-group">
-            <button class="btn btn-outline-secondary btn-sm edit-label-btn" 
-                    data-label-id="${label.id}"
-                    data-label-name="${label.name}"
-                    data-label-color="${label.color}"
-                    title="編集">
-                <i class="bi bi-pencil"></i>
-            </button>
-            <button class="btn btn-outline-danger btn-sm delete-label-btn" 
-                    data-label-id="${label.id}"
-                    data-label-name="${label.name}"
-                    title="削除">
-                <i class="bi bi-trash"></i>
-            </button>
-        </div>
-    `;
-    labelButtons.appendChild(labelItem);
+    const button = document.createElement('button');
+    button.className = 'btn btn-outline-primary btn-sm me-2 mb-2 label-btn editable-label';
+    button.setAttribute('data-label-id', label.id);
+    button.setAttribute('data-label-name', label.name);
+    button.setAttribute('data-label-color', label.color);
+    button.setAttribute('title', 'クリックで編集');
+    button.textContent = label.name;
+    button.style.borderColor = label.color;
+    
+    labelButtons.appendChild(button);
 }
 
-// UIのラベルを更新
-function updateLabelInUI(label) {
-    const labelItem = document.querySelector(`[data-label-id="${label.id}"]`);
-    if (labelItem) {
-        const labelBtn = labelItem.querySelector('.label-btn');
-        const editBtn = labelItem.querySelector('.edit-label-btn');
-        const deleteBtn = labelItem.querySelector('.delete-label-btn');
-        const colorIndicator = labelBtn.querySelector('.color-indicator');
-        
-        // ボタンテキストと色を更新
-        labelBtn.innerHTML = `
-            <span class="color-indicator rounded-circle d-inline-block me-1" 
-                  style="width: 12px; height: 12px; background-color: ${label.color};"></span>
-            ${label.name}
-        `;
-        
-        // データ属性を更新
-        labelBtn.dataset.labelName = label.name;
-        labelBtn.dataset.labelColor = label.color;
-        editBtn.dataset.labelName = label.name;
-        editBtn.dataset.labelColor = label.color;
-        deleteBtn.dataset.labelName = label.name;
+// アノテーションキャンバスのラベルデータを更新
+function updateLabelInCanvas(label) {
+    const labelIndex = window.labelsData.findIndex(l => l.id === label.id);
+    if (labelIndex !== -1) {
+        window.labelsData[labelIndex] = label;
     }
-}
-
-// UIからラベルを削除
-function removeLabelFromUI(labelId) {
-    const labelItem = document.querySelector(`[data-label-id="${labelId}"]`);
-    if (labelItem) {
-        labelItem.remove();
+    
+    // 既存のアノテーションのラベル情報も更新
+    if (annotationCanvas) {
+        annotationCanvas.annotations.forEach(annotation => {
+            if (annotation.label_id === label.id) {
+                annotation.label_name = label.name;
+                annotation.label_color = label.color;
+            }
+        });
+        annotationCanvas.redraw();
+        annotationCanvas.updateAnnotationsList();
     }
 }
 
@@ -721,3 +798,65 @@ function getCookie(name) {
     }
     return cookieValue;
 }
+
+// モーダルのbackdropをクリーンアップする関数
+function cleanupModalBackdrops() {
+    // すべてのモーダルbackdropを削除
+    const backdrops = document.querySelectorAll('.modal-backdrop');
+    backdrops.forEach(backdrop => {
+        backdrop.remove();
+    });
+    
+    // body要素からmodal-openクラスを削除
+    document.body.classList.remove('modal-open');
+    
+    // bodyのstyleをリセット（overflowなど）
+    document.body.style.overflow = '';
+    document.body.style.paddingRight = '';
+    
+    // 念のため、CSSクラスでもクリーンアップ
+    document.body.classList.add('modal-backdrop-cleanup');
+    setTimeout(() => {
+        document.body.classList.remove('modal-backdrop-cleanup');
+    }, 100);
+    
+    // 開いているモーダルがある場合は閉じる
+    const openModals = document.querySelectorAll('.modal.show');
+    openModals.forEach(modal => {
+        const bsModal = bootstrap.Modal.getInstance(modal);
+        if (bsModal) {
+            bsModal.hide();
+        }
+    });
+}
+
+// ページ離脱時やリサイズ時の cleanup
+window.addEventListener('beforeunload', function() {
+    cleanupModalBackdrops();
+});
+
+window.addEventListener('resize', function() {
+    // リサイズ時にもbackdropの問題が起こることがあるのでクリーンアップ
+    const backdrops = document.querySelectorAll('.modal-backdrop');
+    if (backdrops.length > 1) {
+        cleanupModalBackdrops();
+    }
+});
+
+// キーボードイベント（ESCキー）でもクリーンアップ
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        setTimeout(() => {
+            cleanupModalBackdrops();
+        }, 200);
+    }
+});
+
+// 既存のアノテーションを読み込み
+annotationCanvas.loadExistingAnnotations(window.existingAnnotations);
+
+// 既存のラベルボタンに色を適用
+initializeLabelButtonColors();
+
+// ラベル管理機能を初期化
+initLabelManagement();
