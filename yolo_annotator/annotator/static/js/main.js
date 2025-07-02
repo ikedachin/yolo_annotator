@@ -53,6 +53,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 分割実行ボタン
     confirmSplitBtn.addEventListener('click', function() {
         const splitRatio = document.getElementById('split-ratio').value;
+        const imageSize = document.getElementById('image-size').value;
         
         this.disabled = true;
         this.textContent = '分割中...';
@@ -64,7 +65,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 'X-CSRFToken': getCookie('csrftoken')
             },
             body: JSON.stringify({
-                split_ratio: parseFloat(splitRatio)
+                split_ratio: parseFloat(splitRatio),
+                image_size: parseInt(imageSize)
             })
         })
         .then(response => response.json())
