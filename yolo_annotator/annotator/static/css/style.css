@@ -2,6 +2,9 @@
 .canvas-container {
     text-align: center;
     overflow: auto;
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 10px;
 }
 
 #annotation-canvas {
@@ -9,8 +12,10 @@
     max-height: 70vh;
     display: block;
     margin: 0 auto;
-    background-color: #f8f9fa;
+    background-color: #ffffff;
     border: 2px solid #dee2e6 !important;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
 .label-btn.active {
@@ -107,6 +112,31 @@
 
 #labels-list .btn-group .btn {
     padding: 0.25rem 0.5rem;
+}
+
+/* ローディングやエラーの表示用 */
+.canvas-status {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    z-index: 10;
+}
+
+.loading-spinner {
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #007bff;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 10px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
 }
 
 /* レスポンシブ対応 */
