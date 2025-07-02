@@ -27,14 +27,24 @@
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">アノテーション</h5>
-                        <div>
+                        <div class="d-flex gap-2">
                             <button id="save-btn" class="btn btn-success btn-sm">保存</button>
                             <button id="clear-all-btn" class="btn btn-danger btn-sm">全削除</button>
-                            {% if next_image %}
-                            <a href="{% url 'annotator:annotate' next_image.id %}" id="next-btn" class="btn btn-primary btn-sm">次の画像</a>
-                            {% else %}
-                            <a href="{% url 'annotator:index' %}" class="btn btn-secondary btn-sm">一覧に戻る</a>
-                            {% endif %}
+                            <div class="btn-group" role="group">
+                                {% if prev_image %}
+                                <a href="{% url 'annotator:annotate' prev_image.id %}" id="prev-btn" class="btn btn-outline-primary btn-sm" title="前の画像">
+                                    <i class="bi bi-chevron-left"></i> 前
+                                </a>
+                                {% endif %}
+                                {% if next_image %}
+                                <a href="{% url 'annotator:annotate' next_image.id %}" id="next-btn" class="btn btn-outline-primary btn-sm" title="次の画像">
+                                    次 <i class="bi bi-chevron-right"></i>
+                                </a>
+                                {% endif %}
+                                {% if not next_image and not prev_image %}
+                                <a href="{% url 'annotator:index' %}" class="btn btn-secondary btn-sm">一覧に戻る</a>
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
                     <div class="card-body">
@@ -102,8 +112,28 @@
                                 <li>ラベルを選択</li>
                                 <li>画像上でドラッグして矩形を描画</li>
                                 <li>「保存」ボタンで保存</li>
-                                <li>「次の画像」で次へ</li>
+                                <li>ナビゲーション：
+                                    <ul>
+                                        <li>「前」ボタンまたは←キーで前の画像</li>
+                                        <li>「次」ボタンまたは→キーで次の画像</li>
+                                    </ul>
+                                </li>
                             </ol>
+                        </small>
+                    </div>
+                </div>
+
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h6>キーボードショートカット</h6>
+                    </div>
+                    <div class="card-body">
+                        <small>
+                            <ul class="list-unstyled">
+                                <li><kbd>←</kbd> 前の画像</li>
+                                <li><kbd>→</kbd> 次の画像</li>
+                                <li><kbd>Ctrl+S</kbd> 保存</li>
+                            </ul>
                         </small>
                     </div>
                 </div>

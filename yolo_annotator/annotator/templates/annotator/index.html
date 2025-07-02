@@ -50,7 +50,7 @@
                                     {% if image.is_annotated %}
                                         <span class="badge bg-success">完了</span>
                                     {% else %}
-                                        <span class="badge bg-secondary">未完了</span>
+                                        <span class="badge bg-danger">未完了</span>
                                     {% endif %}
                                 </p>
                                 <a href="{% url 'annotator:annotate' image.id %}" class="btn btn-primary btn-sm">アノテーション</a>
@@ -84,7 +84,7 @@
                                 {% if image.is_annotated %}
                                     <span class="badge bg-success">完了</span>
                                 {% else %}
-                                    <span class="badge bg-secondary">未完了</span>
+                                    <span class="badge bg-danger">未完了</span>
                                 {% endif %}
                             </div>
                             <div class="col-md-2">
