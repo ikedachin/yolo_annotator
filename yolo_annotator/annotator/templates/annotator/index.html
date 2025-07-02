@@ -21,15 +21,26 @@
     <div class="container mt-4">
         <div class="row">
             <div class="col-md-8">
-                <h2>画像一覧</h2>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2>画像一覧</h2>
+                    <div class="btn-group" role="group" aria-label="表示切り替え">
+                        <button type="button" class="btn btn-outline-secondary" id="grid-view-btn" title="グリッド表示">
+                            <i class="bi bi-grid-3x3-gap"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" id="list-view-btn" title="リスト表示">
+                            <i class="bi bi-list"></i>
+                        </button>
+                    </div>
+                </div>
                 <div class="mb-3">
                     <button id="load-images-btn" class="btn btn-success">画像を読み込み</button>
                     <button id="split-dataset-btn" class="btn btn-warning">データセット分割</button>
                 </div>
                 
+                <!-- グリッド表示 -->
                 <div class="row" id="images-grid">
                     {% for image in images %}
-                    <div class="col-md-3 mb-3">
+                    <div class="col-md-3 mb-3 image-item" data-filename="{{ image.filename }}" data-width="{{ image.width }}" data-height="{{ image.height }}" data-annotated="{{ image.is_annotated|yesno:'true,false' }}">
                         <div class="card">
                             <img src="{% url 'annotator:serve_image' image.filename %}" class="card-img-top" style="height: 200px; object-fit: cover;" alt="{{ image.filename }}">
                             <div class="card-body">
@@ -49,6 +60,41 @@
                     {% empty %}
                     <div class="col-12">
                         <div class="alert alert-info">
+                            画像がありません。「画像を読み込み」ボタンをクリックして、base_imagesフォルダから画像を読み込んでください。
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- リスト表示 -->
+                <div class="list-group d-none" id="images-list">
+                    {% for image in images %}
+                    <div class="list-group-item image-item" data-filename="{{ image.filename }}" data-width="{{ image.width }}" data-height="{{ image.height }}" data-annotated="{{ image.is_annotated|yesno:'true,false' }}">
+                        <div class="row align-items-center">
+                            <div class="col-md-2">
+                                <img src="{% url 'annotator:serve_image' image.filename %}" class="img-thumbnail" style="height: 80px; width: 80px; object-fit: cover;" alt="{{ image.filename }}">
+                            </div>
+                            <div class="col-md-6">
+                                <h6 class="mb-1">{{ image.filename }}</h6>
+                                <p class="mb-1">
+                                    <small class="text-muted">サイズ: {{ image.width }}x{{ image.height }}</small>
+                                </p>
+                            </div>
+                            <div class="col-md-2">
+                                {% if image.is_annotated %}
+                                    <span class="badge bg-success">完了</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">未完了</span>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-2">
+                                <a href="{% url 'annotator:annotate' image.id %}" class="btn btn-primary btn-sm">アノテーション</a>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="list-group-item">
+                        <div class="alert alert-info mb-0">
                             画像がありません。「画像を読み込み」ボタンをクリックして、base_imagesフォルダから画像を読み込んでください。
                         </div>
                     </div>
@@ -174,6 +220,19 @@
                     indicator.style.backgroundColor = color;
                 }
             });
+            
+            // 表示切り替えボタンの初期状態を設定
+            const currentView = localStorage.getItem('imageViewMode') || 'grid';
+            const gridViewBtn = document.getElementById('grid-view-btn');
+            const listViewBtn = document.getElementById('list-view-btn');
+            
+            if (currentView === 'list') {
+                listViewBtn.classList.add('active');
+                gridViewBtn.classList.remove('active');
+            } else {
+                gridViewBtn.classList.add('active');
+                listViewBtn.classList.remove('active');
+            }
         });
     </script>
 </body>
