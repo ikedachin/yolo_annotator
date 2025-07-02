@@ -126,16 +126,28 @@ def load_images(request):
 @csrf_exempt
 @require_http_methods(["POST"])
 def split_dataset(request):
-    """データセットをtrain/validに分割"""
+    """データセットをtrain/validに分割し、学習用YAMLファイルを生成"""
     try:
         data = json.loads(request.body)
         split_ratio = float(data.get('split_ratio', 0.8))  # デフォルト8:2
+        target_size = int(data.get('image_size', 640))  # デフォルト640x640
         
         # アノテーション済みの画像のみを対象
         annotated_images = ImageFile.objects.filter(is_annotated=True)
         
         if not annotated_images.exists():
             return JsonResponse({'status': 'error', 'message': 'アノテーション済みの画像がありません'})
+        
+        # 現在の日時を取得してフォルダ名に使用
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # 日付付きの出力フォルダを作成
+        dated_output_dir = settings.PROJECT_ROOT / 'output' / f'output_{timestamp}'
+        train_images_dir = dated_output_dir / 'images' / 'train'
+        valid_images_dir = dated_output_dir / 'images' / 'valid'
+        train_labels_dir = dated_output_dir / 'labels' / 'train'
+        valid_labels_dir = dated_output_dir / 'labels' / 'valid'
         
         # ランダムに分割
         images_list = list(annotated_images)
@@ -145,32 +157,129 @@ def split_dataset(request):
         train_images = images_list[:train_count]
         valid_images = images_list[train_count:]
         
-        # ファイルをコピー
+        # 画像処理に必要なライブラリをインポート
+        from PIL import Image, ImageOps
+        
+        # ファイルをコピー・リサイズ
         for images, target_img_dir, target_label_dir in [
-            (train_images, settings.TRAIN_IMAGES_DIR, settings.TRAIN_LABELS_DIR),
-            (valid_images, settings.VALID_IMAGES_DIR, settings.VALID_LABELS_DIR)
+            (train_images, train_images_dir, train_labels_dir),
+            (valid_images, valid_images_dir, valid_labels_dir)
         ]:
             os.makedirs(target_img_dir, exist_ok=True)
             os.makedirs(target_label_dir, exist_ok=True)
             
             for image in images:
-                # 画像ファイルをコピー
-                src_img = os.path.join(settings.BASE_IMAGES_DIR, image.filename)
-                dst_img = os.path.join(target_img_dir, image.filename)
-                shutil.copy2(src_img, dst_img)
+                # 画像ファイルを読み込み
+                src_img_path = os.path.join(settings.BASE_IMAGES_DIR, image.filename)
+                dst_img_path = os.path.join(target_img_dir, image.filename)
                 
-                # ラベルファイルを作成
+                # 画像をリサイズ・パディング
+                with Image.open(src_img_path) as img:
+                    # RGBに変換（必要に応じて）
+                    if img.mode != 'RGB':
+                        img = img.convert('RGB')
+                    
+                    original_width, original_height = img.size
+                    
+                    # 画像をターゲットサイズに合わせてリサイズ（アスペクト比を保持）
+                    img.thumbnail((target_size, target_size), Image.Resampling.LANCZOS)
+                    resized_width, resized_height = img.size
+                    
+                    # 正方形のキャンバスを作成（白でパディング）
+                    new_img = Image.new('RGB', (target_size, target_size), (255, 255, 255))
+                    
+                    # 画像をキャンバスの左上に配置
+                    paste_x = 0
+                    paste_y = 0
+                    new_img.paste(img, (paste_x, paste_y))
+                    
+                    # リサイズした画像を保存
+                    new_img.save(dst_img_path, quality=95)
+                    
+                    # スケール比とオフセットを計算
+                    scale_x = resized_width / original_width
+                    scale_y = resized_height / original_height
+                    offset_x = paste_x / target_size
+                    offset_y = paste_y / target_size
+                
+                # ラベルファイルを作成（座標を変換）
                 label_filename = os.path.splitext(image.filename)[0] + '.txt'
                 label_path = os.path.join(target_label_dir, label_filename)
                 
                 with open(label_path, 'w') as f:
                     annotations = Annotation.objects.filter(image=image)
                     for ann in annotations:
-                        f.write(ann.to_yolo_format() + '\n')
+                        # 元の座標を取得
+                        orig_x_center = ann.x_center
+                        orig_y_center = ann.y_center
+                        orig_width = ann.width
+                        orig_height = ann.height
+                        
+                        # 元の画像サイズでの絶対座標に変換
+                        abs_x_center = orig_x_center * original_width
+                        abs_y_center = orig_y_center * original_height
+                        abs_width = orig_width * original_width
+                        abs_height = orig_height * original_height
+                        
+                        # リサイズ後の絶対座標に変換
+                        new_abs_x_center = abs_x_center * scale_x + paste_x
+                        new_abs_y_center = abs_y_center * scale_y + paste_y
+                        new_abs_width = abs_width * scale_x
+                        new_abs_height = abs_height * scale_y
+                        
+                        # 新しい画像サイズでの相対座標に変換
+                        new_x_center = new_abs_x_center / target_size
+                        new_y_center = new_abs_y_center / target_size
+                        new_width = new_abs_width / target_size
+                        new_height = new_abs_height / target_size
+                        
+                        # 座標が範囲内に収まるようにクリップ
+                        new_x_center = max(0, min(1, new_x_center))
+                        new_y_center = max(0, min(1, new_y_center))
+                        new_width = max(0, min(1, new_width))
+                        new_height = max(0, min(1, new_height))
+                        
+                        # YOLO形式で出力
+                        f.write(f"{ann.label.id} {new_x_center:.6f} {new_y_center:.6f} {new_width:.6f} {new_height:.6f}\n")
+        
+        # YAMLファイルを生成（日付付きフォルダ内に）
+        yaml_dir = dated_output_dir
+        os.makedirs(yaml_dir, exist_ok=True)
+        
+        # ファイル名に日時を含める
+        yaml_filename = f"dataset_{target_size}x{target_size}_{timestamp}.yaml"
+        yaml_path = os.path.join(yaml_dir, yaml_filename)
+        
+        # ラベルの情報を取得
+        all_labels = Label.objects.all().order_by('id')
+        label_names = {label.id: label.name for label in all_labels}
+        
+        # データセットのルートパスを日付付きフォルダからの相対パスで設定
+        # データセットのルートパスはmanage.pyからの相対パスで設定
+        dataset_root = f"../output/output_{timestamp}"
+        
+        # YAMLファイルの内容を作成
+        yaml_content = f"""# Train/val/test sets as 1) dir: path/to/imgs, 2) file: path/to/imgs.txt, or 3) list: [path/to/imgs1, path/to/imgs2, ..]
+path: {dataset_root} # dataset root dir
+train: images/train # train images
+val: images/valid # val images
+test: # test images (optional)
+
+# Classes
+names:
+"""
+        
+        # クラス名の部分を追加
+        for label_id, label_name in label_names.items():
+            yaml_content += f"  {label_id}: {label_name}\n"
+        
+        # YAMLファイルを保存
+        with open(yaml_path, 'w', encoding='utf-8') as f:
+            f.write(yaml_content)
         
         return JsonResponse({
             'status': 'success',
-            'message': f'データセットを分割しました (train: {len(train_images)}, valid: {len(valid_images)})'
+            'message': f'データセットを分割しました (train: {len(train_images)}, valid: {len(valid_images)})\n画像サイズ: {target_size}x{target_size}\n出力フォルダ: output_{timestamp}\nYAMLファイルを生成しました: {yaml_filename}'
         })
     
     except Exception as e:
