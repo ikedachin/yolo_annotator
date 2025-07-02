@@ -254,6 +254,9 @@ function addLabelToUI(label) {
         <span class="color-indicator rounded-circle me-2" 
               style="width: 16px; height: 16px; background-color: ${label.color}; border: 1px solid rgba(0,0,0,0.1);"></span>
         <span class="flex-grow-1">${label.name}</span>
+        <span class="text-muted me-2" style="font-size: 0.85em; opacity: 0.7;">
+            (0)
+        </span>
         <div class="btn-group">
             <button class="btn btn-outline-secondary btn-sm edit-label-btn" 
                     data-label-id="${label.id}"
@@ -294,6 +297,8 @@ function updateLabelInUI(label) {
         if (deleteBtn) {
             deleteBtn.setAttribute('data-label-name', label.name);
         }
+        
+        // 使用回数は変わらないのでそのまま
     }
 }
 
