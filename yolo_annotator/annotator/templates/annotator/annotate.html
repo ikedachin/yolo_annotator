@@ -97,9 +97,9 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script type="text/template" id="django-data">
+    <script>
         // 画像データとアノテーションデータをJSに渡す
-        const imageData = {
+        window.imageData = {
             id: {{ image.id }},
             filename: "{{ image.filename }}",
             width: {{ image.width }},
@@ -107,7 +107,7 @@
             url: "{% url 'annotator:serve_image' image.filename %}"
         };
         
-        const labelsData = [
+        window.labelsData = [
             {% for label in labels %}
             {
                 id: {{ label.id }},
@@ -117,7 +117,7 @@
             {% endfor %}
         ];
         
-        const existingAnnotations = [
+        window.existingAnnotations = [
             {% for annotation in annotations %}
             {
                 id: {{ annotation.id }},
@@ -131,35 +131,37 @@
             }{% if not forloop.last %},{% endif %}
             {% endfor %}
         ];
+        
+        console.log('Data loaded:', {
+            imageData: window.imageData,
+            labelsData: window.labelsData,
+            existingAnnotations: window.existingAnnotations
+        });
     </script>
     <script>
-        // Canvas初期化テスト
+        // Django データの読み込み
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('DOM loaded - testing canvas');
-            const testCanvas = document.getElementById('annotation-canvas');
-            if (testCanvas) {
-                console.log('Canvas found:', testCanvas);
-                const testCtx = testCanvas.getContext('2d');
-                
-                // テスト描画
-                testCtx.fillStyle = 'red';
-                testCtx.fillRect(10, 10, 50, 50);
-                testCtx.fillStyle = 'black';
-                testCtx.font = '16px Arial';
-                testCtx.fillText('Canvas Test', 70, 30);
-                console.log('Test drawing completed');
+            console.log('DOM loaded - initializing application');
+            
+            // データが正しく読み込まれているかチェック
+            if (typeof imageData !== 'undefined') {
+                console.log('Image data loaded:', imageData);
             } else {
-                console.error('Canvas not found!');
+                console.error('Image data not found!');
+            }
+            
+            if (typeof labelsData !== 'undefined') {
+                console.log('Labels data loaded:', labelsData);
+            } else {
+                console.error('Labels data not found!');
+            }
+            
+            if (typeof existingAnnotations !== 'undefined') {
+                console.log('Existing annotations loaded:', existingAnnotations);
+            } else {
+                console.error('Existing annotations not found!');
             }
         });
-        
-        // テンプレートからデータを取得して実行
-        try {
-            eval(document.getElementById('django-data').textContent);
-            console.log('Django data loaded successfully');
-        } catch (e) {
-            console.error('Django data loading failed:', e);
-        }
     </script>
     <script src="{% static 'js/annotator.js' %}"></script>
     <script>
