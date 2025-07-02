@@ -41,18 +41,21 @@ class AnnotationCanvas {
         console.log('画像を読み込み中:', imageUrl);
         
         // 画像読み込み前にCanvasを初期化
-        this.canvas.width = 400;
-        this.canvas.height = 400;
-        this.ctx.fillStyle = '#f0f0f0';
+        this.canvas.width = 800;
+        this.canvas.height = 600;
+        this.ctx.fillStyle = '#f8f9fa';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-        this.ctx.fillStyle = 'black';
-        this.ctx.font = '16px Arial';
-        this.ctx.fillText('Loading...', 10, 30);
+        
+        // ローディング表示
+        this.ctx.fillStyle = '#6c757d';
+        this.ctx.font = '18px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('画像を読み込み中...', this.canvas.width / 2, this.canvas.height / 2);
+        this.ctx.textAlign = 'left';
         
         this.image.onload = () => {
             console.log('画像読み込み成功');
-            console.log('実際の画像サイズ:', this.image.naturalWidth, 'x', this.image.naturalHeight);
-            console.log('画像要素のサイズ:', this.image.width, 'x', this.image.height);
+            console.log('画像の自然サイズ:', this.image.naturalWidth, 'x', this.image.naturalHeight);
             this.resizeCanvas();
             this.redraw();
         };
@@ -62,45 +65,69 @@ class AnnotationCanvas {
             console.error('URL:', imageUrl);
             
             // エラー表示
-            this.ctx.fillStyle = '#ffcccc';
+            this.ctx.fillStyle = '#f8d7da';
             this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-            this.ctx.fillStyle = 'red';
+            this.ctx.fillStyle = '#721c24';
             this.ctx.font = '16px Arial';
-            this.ctx.fillText('画像読み込み失敗', 10, 30);
-            this.ctx.fillText(imageUrl, 10, 55);
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText('画像の読み込みに失敗しました', this.canvas.width / 2, this.canvas.height / 2 - 20);
+            this.ctx.fillText('URL: ' + imageUrl, this.canvas.width / 2, this.canvas.height / 2 + 10);
+            this.ctx.textAlign = 'left';
             
-            alert('画像の読み込みに失敗しました: ' + imageUrl);
+            // アラートも表示
+            setTimeout(() => {
+                alert('画像の読み込みに失敗しました。URLを確認してください: ' + imageUrl);
+            }, 100);
         };
         
-        // CORS設定とキャッシュ無効化
+        // 画像読み込み開始
         this.image.crossOrigin = 'anonymous';
-        this.image.src = imageUrl + '?t=' + Date.now();
+        const cacheBuster = '?t=' + Date.now();
+        this.image.src = imageUrl + cacheBuster;
+        
+        console.log('画像読み込み開始:', this.image.src);
     }
     
     resizeCanvas() {
         console.log('resizeCanvas called');
-        console.log('Image dimensions:', this.image.width, 'x', this.image.height);
         
-        const containerWidth = this.canvas.parentElement.clientWidth - 20;
-        const containerHeight = window.innerHeight * 0.7;
+        if (!this.image || !this.image.naturalWidth || !this.image.naturalHeight) {
+            console.error('Invalid image for resizing');
+            return;
+        }
         
-        console.log('Container dimensions:', containerWidth, 'x', containerHeight);
+        console.log('Image natural dimensions:', this.image.naturalWidth, 'x', this.image.naturalHeight);
         
-        const imageAspectRatio = this.image.width / this.image.height;
-        const containerAspectRatio = containerWidth / containerHeight;
+        // コンテナサイズを取得
+        const container = this.canvas.parentElement;
+        const containerWidth = container.clientWidth - 40; // パディングを考慮
+        const maxHeight = Math.min(window.innerHeight * 0.7, 600); // 最大高さを制限
+        
+        console.log('Container constraints:', containerWidth, 'x', maxHeight);
+        
+        // 画像のアスペクト比を維持してキャンバスサイズを計算
+        const imageAspectRatio = this.image.naturalWidth / this.image.naturalHeight;
+        const containerAspectRatio = containerWidth / maxHeight;
         
         if (imageAspectRatio > containerAspectRatio) {
+            // 幅が制限要因
             this.canvas.width = containerWidth;
             this.canvas.height = containerWidth / imageAspectRatio;
         } else {
-            this.canvas.height = containerHeight;
-            this.canvas.width = containerHeight * imageAspectRatio;
+            // 高さが制限要因
+            this.canvas.height = maxHeight;
+            this.canvas.width = maxHeight * imageAspectRatio;
         }
         
-        this.scale = this.canvas.width / this.image.width;
+        // スケール係数を計算
+        this.scale = this.canvas.width / this.image.naturalWidth;
         
         console.log('Canvas resized to:', this.canvas.width, 'x', this.canvas.height);
         console.log('Scale factor:', this.scale);
+        
+        // CSSでキャンバスサイズを明示的に設定
+        this.canvas.style.width = this.canvas.width + 'px';
+        this.canvas.style.height = this.canvas.height + 'px';
     }
     
     onMouseDown(e) {
@@ -149,10 +176,10 @@ class AnnotationCanvas {
             const imageHeight = height / this.scale;
             
             // YOLO形式（正規化された中心座標と幅・高さ）
-            const x_center = (imageX + imageWidth / 2) / this.image.width;
-            const y_center = (imageY + imageHeight / 2) / this.image.height;
-            const norm_width = imageWidth / this.image.width;
-            const norm_height = imageHeight / this.image.height;
+            const x_center = (imageX + imageWidth / 2) / this.image.naturalWidth;
+            const y_center = (imageY + imageHeight / 2) / this.image.naturalHeight;
+            const norm_width = imageWidth / this.image.naturalWidth;
+            const norm_height = imageHeight / this.image.naturalHeight;
             
             const annotation = {
                 id: Date.now(), // 一時的なID
@@ -183,10 +210,10 @@ class AnnotationCanvas {
         // クリックされた座標にあるアノテーションを検索
         for (let i = this.annotations.length - 1; i >= 0; i--) {
             const ann = this.annotations[i];
-            const x = (ann.x_center - ann.width / 2) * this.image.width * this.scale;
-            const y = (ann.y_center - ann.height / 2) * this.image.height * this.scale;
-            const w = ann.width * this.image.width * this.scale;
-            const h = ann.height * this.image.height * this.scale;
+            const x = (ann.x_center - ann.width / 2) * this.image.naturalWidth * this.scale;
+            const y = (ann.y_center - ann.height / 2) * this.image.naturalHeight * this.scale;
+            const w = ann.width * this.image.naturalWidth * this.scale;
+            const h = ann.height * this.image.naturalHeight * this.scale;
             
             if (clickX >= x && clickX <= x + w && clickY >= y && clickY <= y + h) {
                 this.highlightAnnotation(ann.id);
@@ -210,45 +237,64 @@ class AnnotationCanvas {
     
     redraw() {
         console.log('redraw called');
-        console.log('Canvas size:', this.canvas.width, 'x', this.canvas.height);
-        console.log('Image size:', this.image.width, 'x', this.image.height);
-        console.log('Image complete:', this.image.complete);
-        console.log('Image naturalWidth:', this.image.naturalWidth);
-        console.log('Image naturalHeight:', this.image.naturalHeight);
         
+        // キャンバスをクリア
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
-        if (this.image.complete && this.image.naturalWidth > 0) {
+        // 画像が準備完了しているかチェック
+        if (this.image && this.image.complete && this.image.naturalWidth > 0) {
+            console.log('Drawing image to canvas');
             this.ctx.drawImage(this.image, 0, 0, this.canvas.width, this.canvas.height);
-            console.log('Image drawn successfully');
         } else {
             console.warn('Image not ready for drawing');
-            // デバッグ用に何か表示
-            this.ctx.fillStyle = '#ff0000';
-            this.ctx.fillText('画像読み込み中...', 10, 20);
+            // 読み込み中の表示
+            this.ctx.fillStyle = '#f8f9fa';
+            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+            this.ctx.fillStyle = '#6c757d';
+            this.ctx.font = '16px Arial';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText('画像を読み込み中...', this.canvas.width / 2, this.canvas.height / 2);
+            this.ctx.textAlign = 'left';
+            return; // 画像が読み込まれていない場合はアノテーションも描画しない
         }
         
         // 既存のアノテーションを描画
         this.annotations.forEach(ann => {
             this.drawAnnotation(ann);
         });
+        
+        console.log('redraw completed');
     }
     
     drawAnnotation(annotation) {
-        const x = (annotation.x_center - annotation.width / 2) * this.image.width * this.scale;
-        const y = (annotation.y_center - annotation.height / 2) * this.image.height * this.scale;
-        const w = annotation.width * this.image.width * this.scale;
-        const h = annotation.height * this.image.height * this.scale;
+        if (!this.image || !this.image.naturalWidth) {
+            return; // 画像が読み込まれていない場合は描画しない
+        }
+        
+        // YOLO形式からキャンバス座標に変換
+        const x = (annotation.x_center - annotation.width / 2) * this.image.naturalWidth * this.scale;
+        const y = (annotation.y_center - annotation.height / 2) * this.image.naturalHeight * this.scale;
+        const w = annotation.width * this.image.naturalWidth * this.scale;
+        const h = annotation.height * this.image.naturalHeight * this.scale;
         
         // 矩形を描画
         this.ctx.strokeStyle = annotation.label_color;
         this.ctx.lineWidth = 2;
         this.ctx.strokeRect(x, y, w, h);
         
-        // ラベル名を描画
-        this.ctx.fillStyle = annotation.label_color;
+        // ラベル名を描画（背景付き）
         this.ctx.font = '14px Arial';
-        this.ctx.fillText(annotation.label_name, x, y - 5);
+        const textMetrics = this.ctx.measureText(annotation.label_name);
+        const textWidth = textMetrics.width;
+        const textHeight = 14;
+        
+        // 背景を描画
+        this.ctx.fillStyle = annotation.label_color;
+        this.ctx.fillRect(x, y - textHeight - 4, textWidth + 8, textHeight + 4);
+        
+        // テキストを描画
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.fillText(annotation.label_name, x + 4, y - 4);
     }
     
     setSelectedLabel(labelId, labelName, labelColor) {
@@ -331,16 +377,49 @@ let annotationCanvas;
 
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM読み込み完了');
-    console.log('画像データ:', imageData);
     
+    // データの存在確認
+    if (typeof window.imageData === 'undefined') {
+        console.error('imageData is not defined');
+        alert('画像データの読み込みに失敗しました。ページを再読み込みしてください。');
+        return;
+    }
+    
+    if (typeof window.labelsData === 'undefined') {
+        console.error('labelsData is not defined');
+        alert('ラベルデータの読み込みに失敗しました。ページを再読み込みしてください。');
+        return;
+    }
+    
+    if (typeof window.existingAnnotations === 'undefined') {
+        console.error('existingAnnotations is not defined');
+        window.existingAnnotations = [];
+    }
+    
+    // グローバル変数として設定
+    window.imageData = window.imageData;
+    window.labelsData = window.labelsData;
+    window.existingAnnotations = window.existingAnnotations;
+    
+    console.log('画像データ:', window.imageData);
+    console.log('ラベルデータ:', window.labelsData);
+    console.log('既存アノテーション:', window.existingAnnotations);
+    
+    // アノテーションキャンバスを初期化
     annotationCanvas = new AnnotationCanvas('annotation-canvas');
     
+    if (!annotationCanvas.canvas) {
+        console.error('Canvas initialization failed');
+        alert('キャンバスの初期化に失敗しました。');
+        return;
+    }
+    
     // 画像を読み込み
-    console.log('画像読み込み開始:', imageData.url);
-    annotationCanvas.loadImage(imageData.url);
+    console.log('画像読み込み開始:', window.imageData.url);
+    annotationCanvas.loadImage(window.imageData.url);
     
     // 既存のアノテーションを読み込み
-    annotationCanvas.loadExistingAnnotations(existingAnnotations);
+    annotationCanvas.loadExistingAnnotations(window.existingAnnotations);
     
     // ラベルボタンのイベントリスナー（イベント委譲を使用）
     document.getElementById('label-buttons').addEventListener('click', function(e) {
@@ -366,7 +445,7 @@ document.addEventListener('DOMContentLoaded', function() {
         this.disabled = true;
         this.textContent = '保存中...';
         
-        fetch(`/api/save_annotations/${imageData.id}/`, {
+        fetch(`/api/save_annotations/${window.imageData.id}/`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -487,7 +566,7 @@ function addLabel(name, color) {
             // モーダルを閉じる
             bootstrap.Modal.getInstance(document.getElementById('labelModal')).hide();
             // グローバルラベルデータも更新
-            labelsData.push(data.label);
+            window.labelsData.push(data.label);
         } else {
             alert('エラー: ' + data.message);
         }
@@ -516,9 +595,9 @@ function updateLabel(labelId, name, color) {
             // モーダルを閉じる
             bootstrap.Modal.getInstance(document.getElementById('labelModal')).hide();
             // グローバルラベルデータも更新
-            const labelIndex = labelsData.findIndex(l => l.id == labelId);
+            const labelIndex = window.labelsData.findIndex(l => l.id == labelId);
             if (labelIndex !== -1) {
-                labelsData[labelIndex] = data.label;
+                window.labelsData[labelIndex] = data.label;
             }
         } else {
             alert('エラー: ' + data.message);
@@ -545,9 +624,9 @@ function deleteLabel(labelId) {
             // ラベル一覧から削除
             removeLabelFromUI(labelId);
             // グローバルラベルデータからも削除
-            const labelIndex = labelsData.findIndex(l => l.id == labelId);
+            const labelIndex = window.labelsData.findIndex(l => l.id == labelId);
             if (labelIndex !== -1) {
-                labelsData.splice(labelIndex, 1);
+                window.labelsData.splice(labelIndex, 1);
             }
             alert(data.message);
         } else {
