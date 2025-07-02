@@ -134,6 +134,7 @@ TRAIN_IMAGES_DIR = PROJECT_ROOT / 'output' / 'images' / 'train'
 VALID_IMAGES_DIR = PROJECT_ROOT / 'output' / 'images' / 'valid'
 TRAIN_LABELS_DIR = PROJECT_ROOT / 'output' / 'labels' / 'train'
 VALID_LABELS_DIR = PROJECT_ROOT / 'output' / 'labels' / 'valid'
+TRAINING_YAML_DIR = PROJECT_ROOT / 'output' / 'training_yaml'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
