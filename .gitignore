@@ -1,4 +1,14 @@
 .venv/
+base_image/*.jpg
+base_image/*.png
+base_image/*.jpeg
+base_image/*.gif
+base_image/*.bmp
+output/images/train/*.*
+output/images/valid/*.*
+output/labels/train/*.*
+output/labels/valid/*.*
+
 # yolo_annotator/db.sqlite3
 __pycache__/
 *.pyc
