@@ -116,6 +116,9 @@
                               style="width: 16px; height: 16px; border: 1px solid rgba(0,0,0,0.1);"
                               data-color="{{ label.color }}"></span>
                         <span class="flex-grow-1">{{ label.name }}</span>
+                        <span class="text-muted me-2" style="font-size: 0.85em; opacity: 0.7;">
+                            ({{ label.usage_count|default:0 }})
+                        </span>
                         <div class="btn-group">
                             <button class="btn btn-outline-secondary btn-sm edit-label-btn" 
                                     data-label-id="{{ label.id }}"
