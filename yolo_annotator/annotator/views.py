@@ -3,6 +3,7 @@ from django.http import JsonResponse, HttpResponse, Http404
 from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
+from django.db.models import Count
 import os
 import json
 import shutil
@@ -14,10 +15,17 @@ from .models import ImageFile, Label, Annotation
 def index(request):
     """画像一覧ページ"""
     images = ImageFile.objects.all().order_by('filename')
-    labels = Label.objects.all()
+    
+    # ラベルの使用回数を取得
+    labels = Label.objects.annotate(usage_count=Count('annotation')).order_by('name')
+    
+    # アノテーション済み画像数を計算
+    annotated_count = images.filter(is_annotated=True).count()
+    
     return render(request, 'annotator/index.html', {
         'images': images,
-        'labels': labels
+        'labels': labels,
+        'annotated_count': annotated_count
     })
 
 
@@ -39,7 +47,7 @@ def annotate(request, image_id):
 
 
 @csrf_exempt
-@require_http_methods(["POST"])
+@require_http_methods(["POST"]) # POSTリクエストのみを許可
 def save_annotations(request, image_id):
     """アノテーションデータを保存"""
     image = get_object_or_404(ImageFile, id=image_id)
@@ -193,8 +201,13 @@ def add_label(request):
             }
         })
     
+    except json.JSONDecodeError:
+        return JsonResponse({'status': 'error', 'message': 'JSONデータの形式が正しくありません'})
     except Exception as e:
-        return JsonResponse({'status': 'error', 'message': str(e)})
+        # データベースの整合性制約エラーの場合
+        if 'UNIQUE constraint failed' in str(e):
+            return JsonResponse({'status': 'error', 'message': 'このラベル名は既に使用されています'})
+        return JsonResponse({'status': 'error', 'message': f'ラベルの作成に失敗しました: {str(e)}'})
 
 
 @csrf_exempt
@@ -225,7 +238,7 @@ def delete_label(request, label_id):
 
 
 @csrf_exempt
-@require_http_methods(["POST"])
+@require_http_methods(["POST", "PUT"]) # ラベルの更新はPOST,PUTリクエストのみ
 def update_label(request, label_id):
     """ラベルを更新"""
     try:
@@ -235,13 +248,19 @@ def update_label(request, label_id):
         name = data.get('name', '').strip()
         color = data.get('color', label.color)
         
+        print(f"ラベル更新要求: ID={label_id}, 現在の名前='{label.name}', 新しい名前='{name}'")
+        
         if not name:
             return JsonResponse({'status': 'error', 'message': 'ラベル名が必要です'})
         
-        # 名前が変更されている場合、重複チェック
-        if name != label.name and Label.objects.filter(name=name).exists():
-            return JsonResponse({'status': 'error', 'message': 'このラベル名は既に存在します'})
+        # 名前が変更されている場合のみ重複チェック
+        if name != label.name:
+            existing_label = Label.objects.filter(name=name).first()
+            if existing_label:
+                print(f"重複チェック: ラベル名 '{name}' は既に存在します (ID: {existing_label.id})")
+                return JsonResponse({'status': 'error', 'message': 'このラベル名は既に存在します'})
         
+        # ラベル情報を更新（使用中でも編集可能）
         label.name = name
         label.color = color
         label.save()
@@ -255,8 +274,13 @@ def update_label(request, label_id):
             }
         })
     
+    except json.JSONDecodeError:
+        return JsonResponse({'status': 'error', 'message': 'JSONデータの形式が正しくありません'})
     except Exception as e:
-        return JsonResponse({'status': 'error', 'message': str(e)})
+        # データベースの整合性制約エラーの場合
+        if 'UNIQUE constraint failed' in str(e):
+            return JsonResponse({'status': 'error', 'message': 'このラベル名は既に使用されています'})
+        return JsonResponse({'status': 'error', 'message': f'ラベルの更新に失敗しました: {str(e)}'})
 
 
 def serve_image(request, filename):
@@ -292,3 +316,6 @@ def serve_image(request, filename):
     except Exception as e:
         print(f"画像配信エラー: {str(e)}")
         raise Http404(f"画像の読み込みに失敗しました: {str(e)}")
+
+
+
