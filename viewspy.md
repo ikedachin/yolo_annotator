@@ -35,16 +35,25 @@ from .models import ImageFile, Label, Annotation
 **戻り値**: レンダリングされたHTMLページ（ラベル使用回数情報を含む）
 
 ### 2. `annotate(request, image_id)`
-**機能**: アノテーション画面の表示
+**機能**: アノテーション画面の表示（ナビゲーション機能付き）
 - 指定されたIDの画像を取得
 - 全てのラベルとその画像のアノテーションを取得
-- 次の画像（IDが大きい順で最初の画像）を取得
+- **次の画像**（IDが大きい順で最初の画像）を取得
+- **前の画像**（IDが小さい順で最後の画像）を取得
 - `annotate.html`テンプレートをレンダリング
 
 **パラメータ**:
 - `image_id`: アノテーション対象の画像ID
 
-**戻り値**: アノテーション画面のHTMLページ
+**データベースクエリ**:
+- `ImageFile.objects.filter(id__gt=image_id).first()`: 次の画像取得
+- `ImageFile.objects.filter(id__lt=image_id).order_by('-id').first()`: 前の画像取得
+
+**テンプレート変数**:
+- `next_image`: 次の画像オブジェクト（最後の画像の場合はNone）
+- `prev_image`: 前の画像オブジェクト（最初の画像の場合はNone）
+
+**戻り値**: アノテーション画面のHTMLページ（前後ナビゲーション付き）
 
 ### 3. `save_annotations(request, image_id)`
 **機能**: アノテーションデータの保存

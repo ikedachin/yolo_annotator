@@ -617,3 +617,91 @@ headers: {
 `annotator.js` は、YOLO形式アノテーション作業のための包括的なフロントエンドシステムです。Canvas APIを中核とした描画機能、リアルタイムな座標変換、堅牢なラベル管理システム、適切なエラーハンドリングにより、効率的で使いやすいアノテーション環境を提供しています。
 
 モジュール化された設計により、将来の機能拡張や保守性も考慮されており、機械学習プロジェクトでの実用的な活用が期待できます。
+
+## キーボードナビゲーション機能
+
+### 概要
+作業効率を向上させるため、キーボードショートカットによる画像間ナビゲーション機能を実装。
+
+### 実装詳細
+
+#### initKeyboardNavigation関数
+```javascript
+function initKeyboardNavigation() {
+    document.addEventListener('keydown', function(event) {
+        // モーダルが開いている場合は無視
+        const openModals = document.querySelectorAll('.modal.show');
+        if (openModals.length > 0) {
+            return;
+        }
+        
+        // 入力フィールドにフォーカスがある場合は無視
+        const activeElement = document.activeElement;
+        if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+            return;
+        }
+        
+        switch(event.key) {
+            case 'ArrowLeft':
+                event.preventDefault();
+                const prevBtn = document.getElementById('prev-btn');
+                if (prevBtn) {
+                    prevBtn.click();
+                }
+                break;
+                
+            case 'ArrowRight':
+                event.preventDefault();
+                const nextBtn = document.getElementById('next-btn');
+                if (nextBtn) {
+                    nextBtn.click();
+                }
+                break;
+                
+            case 's':
+            case 'S':
+                if (event.ctrlKey) {
+                    event.preventDefault();
+                    const saveBtn = document.getElementById('save-btn');
+                    if (saveBtn) {
+                        saveBtn.click();
+                    }
+                }
+                break;
+        }
+    });
+}
+```
+
+#### 機能詳細
+
+##### 1. キーマッピング
+- **ArrowLeft（←）**: 前の画像に移動
+- **ArrowRight（→）**: 次の画像に移動
+- **Ctrl+S**: アノテーション保存
+
+##### 2. 干渉防止機能
+- **モーダル使用時**: `.modal.show`クラスの存在をチェック
+- **入力フィールド**: INPUT・TEXTAREAタグへのフォーカスをチェック
+- **イベント防止**: `preventDefault()`でデフォルト動作を無効化
+
+##### 3. エラーハンドリング
+- ボタン存在チェック後にクリック実行
+- 最初/最後の画像での適切な動作保証
+
+##### 4. ユーザー体験
+- **高速作業**: キーボードのみでの連続作業
+- **直感的操作**: 矢印キーによる自然な移動
+- **作業継続性**: Ctrl+Sでの素早い保存
+
+### 初期化
+```javascript
+// アプリケーション初期化時に実行
+initKeyboardNavigation();
+```
+
+### 設計思想
+- **非侵入的**: 他の機能に影響を与えない
+- **安全性**: 誤操作の防止
+- **効率性**: 最小限のキー操作で最大の効果
+- **互換性**: 既存のUI要素との協調動作
