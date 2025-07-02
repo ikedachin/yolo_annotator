@@ -35,14 +35,16 @@ def annotate(request, image_id):
     labels = Label.objects.all()
     annotations = Annotation.objects.filter(image=image)
     
-    # 次の画像を取得
+    # 次の画像と前の画像を取得
     next_image = ImageFile.objects.filter(id__gt=image_id).first()
+    prev_image = ImageFile.objects.filter(id__lt=image_id).order_by('-id').first()
     
     return render(request, 'annotator/annotate.html', {
         'image': image,
         'labels': labels,
         'annotations': annotations,
-        'next_image': next_image
+        'next_image': next_image,
+        'prev_image': prev_image
     })
 
 
